@@ -45,7 +45,8 @@
 //     String columnFamily = "cf";
 //
 //     // Convert DynamoDB JSON to Bigtable JSON
-//     String bigtableJson = dynamoRowUtils.convertDynamoDBJson(input, bigtableRowKey, columnFamily);
+//     String bigtableJson = dynamoRowUtils.convertDynamoDBJson(input, bigtableRowKey,
+// columnFamily);
 //
 //     // Verify the conversion
 //     JsonObject jsonObject = gson.fromJson(bigtableJson, JsonObject.class);
@@ -61,7 +62,8 @@
 //     // Prepare a complex DynamoDB JSON input with various types
 //     String input =
 //         "{\"Item\": {\"id\": {\"S\": \"user123\"},\"name\": {\"S\": \"Jane Smith\"},\"age\":"
-//             + " {\"N\": \"35\"},\"active\": {\"BOOL\": true},\"tags\": {\"L\": [{\"S\": \"admin\"},"
+//             + " {\"N\": \"35\"},\"active\": {\"BOOL\": true},\"tags\": {\"L\": [{\"S\":
+// \"admin\"},"
 //             + " {\"S\": \"user\"}]},\"metadata\": {\"M\": {\"role\": {\"S\": \"manager\"},"
 //             + " \"department\": {\"S\": \"IT\"}}},\"scores\": {\"NS\": [\"10.5\", \"20\","
 //             + " \"30.75\"]},\"binary_data\": {\"B\": \"binary_content\"}}}";
@@ -69,7 +71,8 @@
 //     String columnFamily = "cf";
 //
 //     // Convert DynamoDB JSON to Bigtable JSON
-//     String bigtableJson = dynamoRowUtils.convertDynamoDBJson(input, bigtableRowKey, columnFamily);
+//     String bigtableJson = dynamoRowUtils.convertDynamoDBJson(input, bigtableRowKey,
+// columnFamily);
 //
 //     // Verify the conversion
 //     JsonObject jsonObject = gson.fromJson(bigtableJson, JsonObject.class);

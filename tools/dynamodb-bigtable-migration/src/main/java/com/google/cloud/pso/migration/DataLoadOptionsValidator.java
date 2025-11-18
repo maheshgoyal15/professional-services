@@ -36,9 +36,7 @@ public class DataLoadOptionsValidator {
     }
   }
 
-  /**
-   * Validates if the specified Bigtable resources exist, or creates them if they don't.
-   */
+  /** Validates if the specified Bigtable resources exist, or creates them if they don't. */
   private static void validateBigtableResources(DataLoadPipeline.DataLoadOptions options) {
     if (options.getBigtableInstanceId() != null) {
       try {
@@ -91,8 +89,8 @@ public class DataLoadOptionsValidator {
     String baseTableId =
         prefix
             + DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
-            .withZone(ZoneId.systemDefault())
-            .format(Instant.now());
+                .withZone(ZoneId.systemDefault())
+                .format(Instant.now());
     String tableId = baseTableId;
     int suffix = 1;
 

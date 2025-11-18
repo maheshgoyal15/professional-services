@@ -2,8 +2,6 @@ package com.google.cloud.pso.migration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.beam.sdk.io.FileSystems;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.URI;
@@ -13,10 +11,12 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.beam.sdk.io.FileSystems;
 
 public class ControlFileProcessor {
 
-  public static ControlFileConfig parseControlFile(String controlFilePath) throws IOException, URISyntaxException {
+  public static ControlFileConfig parseControlFile(String controlFilePath)
+      throws IOException, URISyntaxException {
     ObjectMapper objectMapper = new ObjectMapper();
     String jsonContent = readGcsFile(controlFilePath);
     JsonNode rootNode = objectMapper.readTree(jsonContent);
@@ -38,14 +38,15 @@ public class ControlFileProcessor {
     JsonNode mappingsNode = rootNode.path("columnQualifierMappings");
     if (mappingsNode.isArray()) {
       config.columnQualifierMappings = new ArrayList<>();
-      mappingsNode.forEach(mappingNode -> {
-        ColumnMapping mapping = new ColumnMapping();
-        mapping.json = mappingNode.path("json").asText();
-        mapping.columnFamily = mappingNode.path("columnFamily").asText(config.defaultColumnFamily);
-        mapping.columnQualifier = mappingNode.path("columnQualifier").asText();
-        config.columnQualifierMappings.add(mapping);
-
-      });
+      mappingsNode.forEach(
+          mappingNode -> {
+            ColumnMapping mapping = new ColumnMapping();
+            mapping.json = mappingNode.path("json").asText();
+            mapping.columnFamily =
+                mappingNode.path("columnFamily").asText(config.defaultColumnFamily);
+            mapping.columnQualifier = mappingNode.path("columnQualifier").asText();
+            config.columnQualifierMappings.add(mapping);
+          });
     }
 
     if (config.defaultTimestamp == null || config.defaultTimestamp.isEmpty()) {
@@ -57,12 +58,13 @@ public class ControlFileProcessor {
 
   private static String readGcsFile(String gcsPath) throws IOException, URISyntaxException {
     URI uri = new URI(gcsPath);
-    try (ReadableByteChannel channel = FileSystems.open(FileSystems.matchNewResource(uri.toString(), false))) {
+    try (ReadableByteChannel channel =
+        FileSystems.open(FileSystems.matchNewResource(uri.toString(), false))) {
       return new String(Channels.newInputStream(channel).readAllBytes(), StandardCharsets.UTF_8);
     }
   }
 
-  public static class ControlFileConfig implements Serializable{
+  public static class ControlFileConfig implements Serializable {
     public String sourceFileLocation;
     public String defaultColumnFamily;
     public String defaultColumnQualifier;

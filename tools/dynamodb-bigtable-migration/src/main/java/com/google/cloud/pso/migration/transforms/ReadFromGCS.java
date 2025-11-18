@@ -18,7 +18,8 @@ public class ReadFromGCS extends PTransform<PBegin, PCollection<Row>> {
   private final InputFormat inputFormat;
   private final ControlFileProcessor.ControlFileConfig controlFileConfig;
 
-  public ReadFromGCS(String inputFilePath,
+  public ReadFromGCS(
+      String inputFilePath,
       InputFormat inputFormat,
       ControlFileProcessor.ControlFileConfig controlFileConfig) {
     this.inputFilePath = inputFilePath;
@@ -30,10 +31,14 @@ public class ReadFromGCS extends PTransform<PBegin, PCollection<Row>> {
   public PCollection<Row> expand(PBegin input) {
     switch (this.inputFormat) {
       case DYNAMO:
-        PCollection<String> rawLines = input.apply("Read GZipped Files",
-            TextIO.read().from(this.inputFilePath).withCompression(Compression.AUTO));
+        PCollection<String> rawLines =
+            input.apply(
+                "Read GZipped Files",
+                TextIO.read().from(this.inputFilePath).withCompression(Compression.AUTO));
 
-        return rawLines.apply("Convert to Beam Row",
+        return rawLines
+            .apply(
+                "Convert to Beam Row",
                 MapElements.into(TypeDescriptor.of(Row.class))
                     .via(line -> BeamRowUtils.jsonToBeamRow(line, this.controlFileConfig)))
             .setCoder(RowCoder.of(BeamRowUtils.bigtableRowWithTextPayloadSchema));

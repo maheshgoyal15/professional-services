@@ -2,22 +2,22 @@ package com.google.cloud.pso.migration.utils;
 
 import com.google.cloud.pso.migration.ControlFileProcessor;
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
 import org.apache.beam.sdk.schemas.Schema;
 import org.apache.beam.sdk.values.Row;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Function;
 
 public class BeamRowUtils {
   private static final Logger LOG = LoggerFactory.getLogger(BeamRowUtils.class);
   // Using Text Payload schema as per DynamoDB requirement (storing JSON strings as values often)
   private static final Schema bigtableCellSchema = getBigtableCellSchema();
-  public static final Schema bigtableRowWithTextPayloadSchema = getBigtableRowSchema(bigtableCellSchema);
+  public static final Schema bigtableRowWithTextPayloadSchema =
+      getBigtableRowSchema(bigtableCellSchema);
   private static final Gson gson = new Gson();
 
   static {
@@ -36,12 +36,14 @@ public class BeamRowUtils {
   private static Schema getBigtableRowSchema(Schema bigtableCellSchema) {
     return Schema.builder()
         .addField(DataLoadConstants.SchemaFields.ROW_KEY, Schema.FieldType.STRING)
-        .addArrayField(DataLoadConstants.SchemaFields.CELLS, Schema.FieldType.row(bigtableCellSchema))
+        .addArrayField(
+            DataLoadConstants.SchemaFields.CELLS, Schema.FieldType.row(bigtableCellSchema))
         .build();
   }
 
   // MODIFIED: Accepts ControlFileConfig
-  public static Row jsonToBeamRow(String dynamoJsonRow, ControlFileProcessor.ControlFileConfig config) {
+  public static Row jsonToBeamRow(
+      String dynamoJsonRow, ControlFileProcessor.ControlFileConfig config) {
     DynamoRowUtils converter = new DynamoRowUtils();
     // Pass config to converter
     String bigtableJsonRow = converter.convertDynamoDBJson(dynamoJsonRow, config);
@@ -50,18 +52,28 @@ public class BeamRowUtils {
     String rowKey = jsonObject.get(DataLoadConstants.SchemaFields.ROW_KEY).getAsString();
     List<Row> bigtableCells = new ArrayList<>();
 
-    for (JsonElement jsonElement : jsonObject.getAsJsonArray(DataLoadConstants.SchemaFields.CELLS).asList()) {
+    for (JsonElement jsonElement :
+        jsonObject.getAsJsonArray(DataLoadConstants.SchemaFields.CELLS).asList()) {
       JsonObject bigtableCell = jsonElement.getAsJsonObject();
       Row.Builder rowBuilder = Row.withSchema(bigtableCellSchema);
 
       JsonElement payloadElement = bigtableCell.get(DataLoadConstants.SchemaFields.PAYLOAD);
       String payload = extractPayload(payloadElement);
-      Row.FieldValueBuilder fieldValueBuilder = rowBuilder.withFieldValue(DataLoadConstants.SchemaFields.PAYLOAD, payload);
+      Row.FieldValueBuilder fieldValueBuilder =
+          rowBuilder.withFieldValue(DataLoadConstants.SchemaFields.PAYLOAD, payload);
 
-      fieldValueBuilder = addFieldIfNotNull(fieldValueBuilder, DataLoadConstants.SchemaFields.COLUMN_FAMILY, bigtableCell);
-      fieldValueBuilder = addFieldIfNotNull(fieldValueBuilder, DataLoadConstants.SchemaFields.COLUMN, bigtableCell);
+      fieldValueBuilder =
+          addFieldIfNotNull(
+              fieldValueBuilder, DataLoadConstants.SchemaFields.COLUMN_FAMILY, bigtableCell);
+      fieldValueBuilder =
+          addFieldIfNotNull(fieldValueBuilder, DataLoadConstants.SchemaFields.COLUMN, bigtableCell);
       // Optional timestamp support from Control File
-      fieldValueBuilder = addFieldIfNotNull(fieldValueBuilder, DataLoadConstants.SchemaFields.TIMESTAMP, bigtableCell, JsonElement::getAsLong);
+      fieldValueBuilder =
+          addFieldIfNotNull(
+              fieldValueBuilder,
+              DataLoadConstants.SchemaFields.TIMESTAMP,
+              bigtableCell,
+              JsonElement::getAsLong);
 
       bigtableCells.add(fieldValueBuilder.build());
     }
@@ -72,11 +84,16 @@ public class BeamRowUtils {
         .build();
   }
 
-  private static Row.FieldValueBuilder addFieldIfNotNull(Row.FieldValueBuilder builder, String fieldName, JsonObject cell) {
+  private static Row.FieldValueBuilder addFieldIfNotNull(
+      Row.FieldValueBuilder builder, String fieldName, JsonObject cell) {
     return addFieldIfNotNull(builder, fieldName, cell, JsonElement::getAsString);
   }
 
-  private static <T> Row.FieldValueBuilder addFieldIfNotNull(Row.FieldValueBuilder builder, String fieldName, JsonObject cell, Function<JsonElement, T> typeConverter) {
+  private static <T> Row.FieldValueBuilder addFieldIfNotNull(
+      Row.FieldValueBuilder builder,
+      String fieldName,
+      JsonObject cell,
+      Function<JsonElement, T> typeConverter) {
     JsonElement value = cell.get(fieldName);
     if (value != null && !value.isJsonNull()) {
       return builder.withFieldValue(fieldName, typeConverter.apply(value));
