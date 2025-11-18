@@ -1,15 +1,24 @@
 {
-  "name": " Dataload Flex Template",
-  "description": "Flex template that reads DynamoDB Export data from  GCS  and writes to Bigtable",
+  "name": "Dataload Flex Template",
+  "description": "Flex template that reads DynamoDB Export data from GCS and writes to Bigtable using a Control File",
   "parameters": [
     {
-      "name": "inputFilePath",
-      "label": "GCS Input filepath",
-      "helpText": "Represents input filepath (gs://<bucketname>/files/*.json.gz) for loading data.",
+      "name": "controlFilePath",
+      "label": "Control File Path",
+      "helpText": "GCS Path to the JSON control file defining mapping and settings.",
       "regexes": [
         "^gs:\\/\\/[^\\n\\r]+$"
       ],
       "isOptional": false
+    },
+    {
+      "name": "inputFilePath",
+      "label": "GCS Input filepath (Override)",
+      "helpText": "Optional override for input filepath. If not provided, uses sourceFileLocation from control file.",
+      "regexes": [
+        "^gs:\\/\\/[^\\n\\r]+$"
+      ],
+      "isOptional": true
     },
     {
       "name": "bigtableProjectId",
@@ -24,22 +33,10 @@
       "isOptional": false
     },
     {
-      "name": "bigtableRowKey",
-      "label": "Bigtable Row Key",
-      "helpText": "bigtableRowKey",
-      "isOptional": false
-    },
-    {
       "name": "bigtableTableId",
       "label": "Bigtable Table ID",
       "helpText": "bigtableTableId",
-      "isOptional": true
-    },
-    {
-      "name": "bigtableColumnFamily",
-      "label": "Bigtable Column Family",
-      "helpText": "bigtableColumnFamily",
-      "isOptional": true
+      "isOptional": false
     },
     {
       "name": "bigtableSplitLargeRows",

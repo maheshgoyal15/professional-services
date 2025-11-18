@@ -35,3 +35,4 @@ function build_flextemplate() {
 }
 
 build_jar
+build_flextemplate

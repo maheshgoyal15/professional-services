@@ -1,0 +1,145 @@
+# DynamoDB to Bigtable Migration Utility
+
+## Overview
+
+This utility migrates data from DynamoDB exports in Amazon S3 to Google Cloud Bigtable. It uses a Dataflow Flex Template to create a pipeline that reads DynamoDB JSON data from Google Cloud Storage (GCS), transforms it, and writes it to a Bigtable table.
+
+## Prerequisites
+
+Before you begin, ensure you have the following:
+
+*   A Google Cloud Platform (GCP) project.
+*   The `gcloud` command-line tool installed and configured.
+*   A Bigtable instance and table created in your GCP project.
+*   A GCS bucket for staging and temporary files for Dataflow.
+*   A GCS bucket to store the DynamoDB export data.
+*   A Google  repository (e.g., Artifact Registry) to store the flex template image.
+*   Service account credentials with the necessary permissions for Dataflow, Bigtable, and GCS.
+*   Java 11 and Maven installed to build the project.
+
+## Configuration
+
+1.  **Clone the repository:**
+
+    ```bash
+    git clone https://github.com/GoogleCloudPlatform/professional-services.git
+    cd professional-services/tools/dynamodb-bigtable-migration
+    ```
+
+2.  **Set up environment variables:**
+
+    Create a `.env` file in the `scripts` directory by copying the `env-sample`:
+
+    ```bash
+    cp scripts/env-sample scripts/.env
+    ```
+
+    Edit `scripts/.env` and set the following variables:
+
+    | Variable                       | Description                                                                                              |
+    | ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+    | `PROJECT_ID`                   | Your Google Cloud project ID.                                                                            |
+    | `REGION`                       | The Google Cloud region to run the Dataflow job in (e.g., `us-central1`).                                |
+    | `REPOSITORY`                   | The name of the Artifact Registry repository to store the Docker image.                                  |
+    | `IMAGE_NAME`                   | The name of the Docker image for the flex template.                                                      |
+    | `FLEX_TEMPLATE_SPEC_FILE_PATH` | The GCS path to store the flex template JSON specification (e.g., `gs://your-bucket/templates/dynamodb-bt`). |
+    | `STAGING_LOCATION`             | The GCS path for Dataflow to stage files (e.g., `gs://your-bucket/staging/`).                            |
+    | `TEMP_LOCATION`                | The GCS path for Dataflow to store temporary files (e.g., `gs://your-bucket/temp/`).                     |
+    | `CONTROL_FILE_PATH`            | The GCS path to the control file (e.g., `gs://your-bucket/control-file.json`).                           |
+    | `INPUT_FILEPATH`               | The GCS path to the DynamoDB export data (e.g., `gs://your-dynamodb-export-bucket/data/*.json.gz`).        |
+    | `BIGTABLE_INSTANCE_ID`         | The ID of your Bigtable instance.                                                                        |
+    | `BIGTABLE_TABLE_ID`            | The ID of your Bigtable table.                                                                           |
+
+## Building the Utility
+
+The `flextemplate-build.sh` script in the `scripts` directory builds the uber JAR and the Dataflow Flex Template.
+
+1.  **Build the JAR and Flex Template:**
+
+    ```bash
+    sh scripts/flextemplate-build.sh
+    ```
+
+    This script performs the following actions:
+    *   Runs `mvn clean package` to create an uber JAR in the `target/` directory.
+    *   Uses `gcloud dataflow flex-template build` to create the flex template and uploads it to GCS.
+
+## Control File
+
+The control file is a JSON file that defines the mapping between DynamoDB items and Bigtable rows.
+
+Here is an example of a `control-file.json`:
+
+```json
+{
+  "sourceFileLocation": "gs://<your-gcs-bucket-name>/dynamodb-export/*.json.gz",
+  "defaultColumnFamily": "cf_raw",
+  "defaultColumnQualifier": "full_item",
+  "rowKey": {
+    "type": "simple",
+    "fields": [
+      "UserId"
+    ]
+  },
+  "columnQualifierMappings": [
+    {
+      "json": "FullName",
+      "columnFamily": "cf_profile",
+      "columnQualifier": "full_name"
+    },
+    {
+      "json": "EmailAddress",
+      "columnFamily": "cf_contact",
+      "columnQualifier": "email"
+    }
+  ]
+}
+```
+
+*   `sourceFileLocation`: The GCS path to the DynamoDB export data. This can be overridden by the `inputFilePath` parameter.
+*   `defaultColumnFamily`: (Optional) If a DynamoDB item does not match any of the `columnQualifierMappings`, the entire item will be written to this column family.
+*   `defaultColumnQualifier`: (Optional) The column qualifier to use when writing an unmapped item to the `defaultColumnFamily`.
+*   `rowKey`: An object that defines how to construct the Bigtable row key.
+    *   `type`: The type of row key construction. `simple` concatenates the values of the specified `fields`.
+    *   `fields`: An array of DynamoDB attribute names to use for the row key.
+    *   `chainChar`: The character to use when joining multiple fields for the row key.
+*   `columnQualifierMappings`: An array of objects that define how to map DynamoDB attributes to Bigtable columns.
+    *   `json`: The name of the DynamoDB attribute. You can use dot notation for nested attributes (e.g., `Contact.Email`).
+    *   `columnFamily`: The Bigtable column family.
+    *   `columnQualifier`: The Bigtable column qualifier.
+
+## Running the Migration
+
+The `flextemplate-run.sh` script in the `scripts` directory runs the Dataflow job to start the migration.
+
+1.  **Run the migration:**
+
+    ```bash
+    sh scripts/flextemplate-run.sh DYNAMO-BT
+    ```
+
+    This command will start a new Dataflow job with a unique name.
+
+## Pipeline Parameters
+
+The following parameters can be passed to the Dataflow pipeline:
+
+| Parameter                 | Description                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| `controlFilePath`         | The GCS path to the control file.                                                        |
+| `inputFilePath`           | The GCS path to the DynamoDB export data. Overrides `sourceFileLocation` in the control file. |
+| `bigtableProjectId`       | The GCP project ID of the Bigtable instance.                                             |
+| `bigtableInstanceId`      | The ID of the Bigtable instance.                                                         |
+| `bigtableTableId`         | The ID of the Bigtable table.                                                            |
+| `bigtableSplitLargeRows`  | (Optional) Whether to split large rows into multiple `MutateRows` requests. Default: `true`. |
+| `bigtableMaxMutationsPerRow` | (Optional) The maximum number of mutations per row. Default: `100000`.                     |
+
+## Monitoring
+
+You can monitor the progress of the Dataflow job in the Google Cloud Console under the "Dataflow" section.
+
+## Troubleshooting
+
+*   **Permission Denied errors:** Ensure the service account used by Dataflow has the necessary IAM roles (`Dataflow Worker`, `Bigtable User`, `Storage Object Viewer`).
+*   **Job fails to start:** Check the Dataflow job logs for any configuration errors or issues with the control file.
+*   **Data not appearing in Bigtable:** Verify the row key and column mappings in the control file are correct. Check the job logs for any transformation errors.

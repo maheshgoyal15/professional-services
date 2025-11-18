@@ -1,216 +1,210 @@
-/*
- *  Copyright 2024 Google LLC
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- */
 package com.google.cloud.pso.migration.utils;
 
+import com.google.cloud.pso.migration.ControlFileProcessor;
 import com.google.gson.*;
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.Base64;
+import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 
 public class DynamoRowUtils {
+  // Use serializeNulls to ensure we don't lose explicitly null data if needed
   private static final Gson gson = new GsonBuilder().serializeNulls().create();
   private static final Logger LOGGER = Logger.getLogger(DynamoRowUtils.class.getName());
 
-  public String convertDynamoDBJson(String input, String bigtableRowKey, String columnFamily) {
+  /**
+   * Main entry point. Normalizes DynamoDB JSON then applies Control File logic.
+   */
+  public String convertDynamoDBJson(String input, ControlFileProcessor.ControlFileConfig config) {
     try {
+      // 1. Parse raw DynamoDB export line
+      JsonObject rawWrapper = JsonParser.parseString(input).getAsJsonObject();
+      // DynamoDB exports are usually wrapped in {"Item": ... }
+      JsonObject dynamoItem = rawWrapper.getAsJsonObject(DataLoadConstants.DynamoDBFields.ITEMS);
 
-      JsonObject dynamoDBItem = JsonParser.parseString(input).getAsJsonObject();
-      return convertItemToCells(dynamoDBItem, bigtableRowKey, columnFamily);
+      if (dynamoItem == null) {
+        throw new RuntimeException("Input JSON does not contain '" + DataLoadConstants.DynamoDBFields.ITEMS + "' root element.");
+      }
+
+      // 2. Normalize DynamoDB Typed JSON to Standard JSON
+      JsonObject standardJson = normalizeDynamoItem(dynamoItem);
+
+      // 3. Apply Control File Mappings (ported from MSSQL JsonRowUtils)
+      return convertPayloadToCells(standardJson, config);
+
     } catch (Exception e) {
-      LOGGER.severe("Failed to convert DynamoDB JSON: " + e.getMessage());
+      LOGGER.log(Level.SEVERE, "Failed to convert DynamoDB JSON: " + e.getMessage(), e);
       throw new RuntimeException("Unable to convert the data: " + e.getMessage(), e);
     }
   }
 
-  private String convertItemToCells(
-      JsonObject dynamoDBItem, String bigtableRowKey, String columnFamily) {
-    try {
-      JsonObject item = dynamoDBItem.getAsJsonObject(DataLoadConstants.DynamoDBFields.ITEMS);
-      Map<String, Object> convertedData = new HashMap<>();
+  /**
+   * Converts DynamoDB typed JSON (e.g., {"pk":{"S":"123"}}) into standard JSON (e.g., {"pk":"123"})
+   */
+  private JsonObject normalizeDynamoItem(JsonObject dynamoItem) {
+    JsonObject standard = new JsonObject();
+    for (Map.Entry<String, JsonElement> entry : dynamoItem.entrySet()) {
+      // Parse the DynamoDB typed value into a Java object
+      Object javaObject = parseDynamoDBValue(entry.getValue().getAsJsonObject());
+      // Convert back to a pure GSON element to build a clean JsonObject
+      standard.add(entry.getKey(), gson.toJsonTree(javaObject));
+    }
+    return standard;
+  }
 
-      // Convert all DynamoDB types to standard format
-      for (Map.Entry<String, JsonElement> entry : item.entrySet()) {
-        convertedData.put(entry.getKey(), parseDynamoDBValue(entry.getValue().getAsJsonObject()));
-      }
+  // =================================================================================
+  // PORTED LOGIC FROM MSSQL JsonRowUtils (ROW KEY & MAPPING)
+  // =================================================================================
 
-      // Extract row_key
-      Object rowKeyObj = convertedData.remove(bigtableRowKey);
-      if (rowKeyObj == null) {
-        throw new IllegalArgumentException("Missing required row key field: " + bigtableRowKey);
-      }
-      String rowKey = rowKeyObj.toString();
+  private String convertPayloadToCells(JsonObject jsonPayload, ControlFileProcessor.ControlFileConfig config) {
+    // 1. Build Row Key using Control File rules
+    String bigtableRowKey = buildRowKey(jsonPayload, config);
 
-      // Create result structure
-      JsonObject result = new JsonObject();
-      result.addProperty(DataLoadConstants.SchemaFields.ROW_KEY, rowKey);
+    JsonObject result = new JsonObject();
+    result.addProperty(DataLoadConstants.SchemaFields.ROW_KEY, bigtableRowKey);
 
-      JsonArray cells = new JsonArray();
+    JsonArray cells = new JsonArray();
+    long timestampMicros = getTimestampMicros(config.defaultTimestamp);
 
-      // Process each field
-      for (Map.Entry<String, Object> entry : convertedData.entrySet()) {
-        String key = entry.getKey();
-        Object value = entry.getValue();
-
-        if (value instanceof Map) {
-          // Handle map type - flatten with dot notation
-          cells.addAll(flattenMap(key, (Map<String, Object>) value, columnFamily));
-        } else if (value instanceof List || value instanceof Set) {
-          // Handle list and set types
-          JsonObject cell = createCell(columnFamily, key, value);
-          cells.add(cell);
-        } else {
-          // Handle primitive types
-          JsonObject cell = createCell(columnFamily, key, value);
-          cells.add(cell);
+    // 2. Process explicit Column Mappings from Control File
+    if (config.columnQualifierMappings != null) {
+      for (ControlFileProcessor.ColumnMapping mapping : config.columnQualifierMappings) {
+        // Use getNestedJsonElement to find the field in the *normalized* standard JSON
+        JsonElement jsonValue = getNestedJsonElement(jsonPayload, mapping.json);
+        if (jsonValue != null && !jsonValue.isJsonNull()) {
+          cells.add(createCell(mapping.columnFamily, mapping.columnQualifier, jsonValue, timestampMicros));
         }
       }
-
-      result.add(DataLoadConstants.SchemaFields.CELLS, cells);
-      return gson.toJson(result);
-    } catch (Exception e) {
-      LOGGER.severe("Failed to convert DynamoDB item to cells: " + e.getMessage());
-      throw new RuntimeException("Unable to convert the data: " + e.getMessage(), e);
     }
+
+    // 3. Process Default Column (dump everything if configured)
+    if (config.defaultColumnQualifier != null && !config.defaultColumnQualifier.isEmpty()) {
+      // Ensure we have a default family
+      String family = config.defaultColumnFamily != null && !config.defaultColumnFamily.isEmpty()
+          ? config.defaultColumnFamily : "cf";
+      cells.add(createCell(family, config.defaultColumnQualifier, jsonPayload, timestampMicros));
+    }
+
+    result.add(DataLoadConstants.SchemaFields.CELLS, cells);
+    return gson.toJson(result);
   }
 
-  private JsonObject createCell(String columnFamily, String key, Object value) {
-    try {
-      JsonObject cell = new JsonObject();
-      cell.addProperty(DataLoadConstants.SchemaFields.COLUMN_FAMILY, columnFamily);
-      cell.addProperty(DataLoadConstants.SchemaFields.COLUMN, key);
-      cell.add(DataLoadConstants.SchemaFields.PAYLOAD, gson.toJsonTree(value));
-      return cell;
-    } catch (Exception e) {
-      throw new RuntimeException("Unable to create cell for key " + key + ": " + e.getMessage(), e);
+  private String buildRowKey(JsonObject jsonPayload, ControlFileProcessor.ControlFileConfig config) {
+    if (config.rowKeyType == null || config.rowKeyFields == null || config.rowKeyFields.isEmpty()) {
+      throw new IllegalArgumentException("Row key configuration is missing in control file.");
     }
-  }
 
-  Object parseDynamoDBValue(JsonObject value) {
-    try {
-      String typeKey = value.keySet().iterator().next();
-      JsonElement actualValue = value.get(typeKey);
-
-      switch (typeKey) {
-        case "S": // String
-          return actualValue.getAsString();
-
-        case "N": // Number
-          String numStr = actualValue.getAsString();
-          try {
-            if (numStr.contains(".")) {
-              return new BigDecimal(numStr);
-            }
-            return Long.parseLong(numStr);
-          } catch (NumberFormatException e) {
-            throw new RuntimeException("Invalid number format: " + numStr, e);
-          }
-
-        case "B": // Binary
-          String binStr = actualValue.getAsString();
-          return Base64.getEncoder().encodeToString(binStr.getBytes());
-
-        case "BOOL": // Boolean
-          return actualValue.getAsBoolean();
-
-        case "NULL": // Null
-          return null;
-
-        case "M": // Map
-          Map<String, Object> map = new HashMap<>();
-          JsonObject mapObj = actualValue.getAsJsonObject();
-          for (Map.Entry<String, JsonElement> entry : mapObj.entrySet()) {
-            map.put(entry.getKey(), parseDynamoDBValue(entry.getValue().getAsJsonObject()));
-          }
-          return map;
-
-        case "L": // List
-          List<Object> list = new ArrayList<>();
-          JsonArray array = actualValue.getAsJsonArray();
-          for (JsonElement element : array) {
-            list.add(parseDynamoDBValue(element.getAsJsonObject()));
-          }
-          return list;
-
-        case "SS": // String Set
-          Set<String> stringSet = new HashSet<>();
-          JsonArray ssArray = actualValue.getAsJsonArray();
-          for (JsonElement element : ssArray) {
-            stringSet.add(element.getAsString());
-          }
-          return new ArrayList<>(stringSet);
-
-        case "NS": // Number Set
-          Set<Number> numberSet = new HashSet<>();
-          JsonArray nsArray = actualValue.getAsJsonArray();
-          for (JsonElement element : nsArray) {
-            String num = element.getAsString();
-            try {
-              if (num.contains(".")) {
-                numberSet.add(new BigDecimal(num));
-              } else {
-                numberSet.add(Long.parseLong(num));
-              }
-            } catch (NumberFormatException e) {
-              throw new RuntimeException("Invalid number in number set: " + num, e);
-            }
-          }
-          return new ArrayList<>(numberSet);
-
-        case "BS": // Binary Set
-          Set<String> binarySet = new HashSet<>();
-          JsonArray bsArray = actualValue.getAsJsonArray();
-          for (JsonElement element : bsArray) {
-            String binData = element.getAsString();
-            binarySet.add(Base64.getEncoder().encodeToString(binData.getBytes()));
-          }
-          return new ArrayList<>(binarySet);
-
-        default:
-          throw new IllegalArgumentException("Unknown DynamoDB type: " + typeKey);
+    if ("simple".equalsIgnoreCase(config.rowKeyType)) {
+      String fieldName = config.rowKeyFields.get(0);
+      JsonElement element = getNestedJsonElement(jsonPayload, fieldName);
+      if (element == null || element.isJsonNull()) {
+        throw new IllegalArgumentException("Simple row key field '" + fieldName + "' not found in payload.");
       }
-    } catch (Exception e) {
-      throw new RuntimeException("Unable to parse DynamoDB value: " + e.getMessage(), e);
-    }
-  }
-
-  private JsonArray flattenMap(String prefix, Map<String, Object> mapData, String columnFamily) {
-    try {
-      JsonArray cells = new JsonArray();
-
-      for (Map.Entry<String, Object> entry : mapData.entrySet()) {
-        String column = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
-        Object value = entry.getValue();
-
-        if (value instanceof Map
-            && !(value instanceof String)
-            && !(value instanceof Number)
-            && !(value instanceof Boolean)) {
-          // Recursively flatten nested maps
-          cells.addAll(flattenMap(column, (Map<String, Object>) value, columnFamily));
-        } else {
-          JsonObject cell = createCell(columnFamily, column, value);
-          cells.add(cell);
+      return element.getAsString();
+    } else if ("composite".equalsIgnoreCase(config.rowKeyType)) {
+      StringBuilder keyBuilder = new StringBuilder();
+      String separator = config.rowKeyChainChar != null ? config.rowKeyChainChar : "#";
+      boolean first = true;
+      for (String field : config.rowKeyFields) {
+        if (!first) keyBuilder.append(separator);
+        JsonElement element = getNestedJsonElement(jsonPayload, field);
+        if (element == null || element.isJsonNull()) {
+          throw new IllegalArgumentException("Composite row key field '" + field + "' not found.");
         }
+        keyBuilder.append(element.getAsString());
+        first = false;
       }
+      return keyBuilder.toString();
+    } else {
+      throw new IllegalArgumentException("Unsupported rowKeyType: " + config.rowKeyType);
+    }
+  }
 
-      return cells;
-    } catch (Exception e) {
-      throw new RuntimeException(
-          "Unable to flatten map for prefix " + prefix + ": " + e.getMessage(), e);
+  private JsonElement getNestedJsonElement(JsonElement jsonElement, String path) {
+    // (Simplified version of MSSQL's complex traverser, adequate for most standard JSON)
+    if (jsonElement == null || path == null || path.isEmpty()) return JsonNull.INSTANCE;
+    String[] parts = path.split("\\.");
+    JsonElement current = jsonElement;
+    for (String part : parts) {
+      if (current.isJsonObject()) {
+        current = current.getAsJsonObject().get(part);
+      } else {
+        return JsonNull.INSTANCE;
+      }
+      if (current == null) return JsonNull.INSTANCE;
+    }
+    return current;
+  }
+
+  private JsonObject createCell(String family, String qualifier, JsonElement payload, long timestampMicros) {
+    JsonObject cell = new JsonObject();
+    cell.addProperty(DataLoadConstants.SchemaFields.COLUMN_FAMILY, family);
+    cell.addProperty(DataLoadConstants.SchemaFields.COLUMN, qualifier);
+    // Store payload as a direct JSON element; BeamRowUtils will stringify it if needed
+    cell.add(DataLoadConstants.SchemaFields.PAYLOAD, payload);
+    cell.addProperty(DataLoadConstants.SchemaFields.TIMESTAMP, timestampMicros);
+    return cell;
+  }
+
+  private long getTimestampMicros(String timestamp) {
+    // Basic implementation defaulting to current time for simplicity in this view
+    if (timestamp == null || timestamp.isEmpty() || "default".equalsIgnoreCase(timestamp)) {
+      return System.currentTimeMillis() * 1000L;
+    }
+    try {
+      return Instant.parse(timestamp).toEpochMilli() * 1000L;
+    } catch (DateTimeParseException e) {
+      try { return Long.parseLong(timestamp) * 1000L; } // Assume it might be millis
+      catch (NumberFormatException ex) { return System.currentTimeMillis() * 1000L; }
+    }
+  }
+
+  // =================================================================================
+  // RETAINED & ADAPTED DYNAMODB PARSING LOGIC
+  // =================================================================================
+  // Changed return type to Object so GSON can easily re-serialize it in normalizeDynamoItem
+  private Object parseDynamoDBValue(JsonObject value) {
+    String typeKey = value.keySet().iterator().next();
+    JsonElement actualValue = value.get(typeKey);
+
+    switch (typeKey) {
+      case "S": return actualValue.getAsString();
+      case "N":
+        String numStr = actualValue.getAsString();
+        return numStr.contains(".") ? new BigDecimal(numStr) : Long.parseLong(numStr);
+      case "B": return Base64.getEncoder().encodeToString(actualValue.getAsString().getBytes());
+      case "BOOL": return actualValue.getAsBoolean();
+      case "NULL": return null;
+      case "M":
+        Map<String, Object> map = new HashMap<>();
+        for (Map.Entry<String, JsonElement> entry : actualValue.getAsJsonObject().entrySet()) {
+          map.put(entry.getKey(), parseDynamoDBValue(entry.getValue().getAsJsonObject()));
+        }
+        return map;
+      case "L":
+        List<Object> list = new ArrayList<>();
+        for (JsonElement element : actualValue.getAsJsonArray()) {
+          list.add(parseDynamoDBValue(element.getAsJsonObject()));
+        }
+        return list;
+      case "SS":
+        List<String> ss = new ArrayList<>();
+        actualValue.getAsJsonArray().forEach(e -> ss.add(e.getAsString()));
+        return ss;
+      case "NS":
+        List<Number> ns = new ArrayList<>();
+        for (JsonElement element : actualValue.getAsJsonArray()) {
+          String n = element.getAsString();
+          ns.add(n.contains(".") ? new BigDecimal(n) : Long.parseLong(n));
+        }
+        return ns;
+      case "BS":
+        List<String> bs = new ArrayList<>();
+        actualValue.getAsJsonArray().forEach(e -> bs.add(Base64.getEncoder().encodeToString(e.getAsString().getBytes())));
+        return bs;
+      default: throw new IllegalArgumentException("Unknown DynamoDB type: " + typeKey);
     }
   }
 }

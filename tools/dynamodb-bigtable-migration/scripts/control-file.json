@@ -1,0 +1,23 @@
+{
+  "sourceFileLocation": "gs://<your-gcs-bucket-name>/dynamodb-export/*.json.gz",
+  "defaultColumnFamily": "cf_raw",
+  "defaultColumnQualifier": "full_item",
+  "rowKey": {
+    "type": "simple",
+    "fields": [
+      "UserId"
+    ]
+  },
+  "columnQualifierMappings": [
+    {
+      "json": "FullName",
+      "columnFamily": "cf_profile",
+      "columnQualifier": "full_name"
+    },
+    {
+      "json": "EmailAddress",
+      "columnFamily": "cf_contact",
+      "columnQualifier": "email"
+    }
+  ]
+}
