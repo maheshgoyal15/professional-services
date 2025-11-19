@@ -180,10 +180,21 @@ You can monitor the progress of the Dataflow job in the Google Cloud Console und
 
 ## Troubleshooting
 
-*   **Permission Denied errors:** Ensure the service account used by Dataflow has the necessary IAM roles (`Dataflow Worker`, `Bigtable User`, `Storage Object Viewer`). If you are using a custom service account, you can specify it by adding the `--service-account-email` parameter to the `gcloud dataflow flex-template run` command in the `scripts/flextemplate-run.sh` script.
+*   **Permission Denied errors:** Ensure the service account used by Dataflow has the necessary IAM roles. If you are using a custom service account, you can specify it by adding the `--service-account-email` parameter to the `gcloud dataflow flex-template run` command in the `scripts/flextemplate-run.sh` script.
     ```bash
     --service-account-email=SERVICE_ACCOUNT_NAME@PROJECT_ID.iam.gserviceaccount.com
     ```
+    **Important: Required Permissions**
+
+    The job will fail (often with "permissions denied" regarding GCS or worker startup) if the service account you provide does not have the correct IAM roles.
+
+    Ensure your service account has at least these roles:
+
+    *   **Dataflow Worker (`roles/dataflow.worker`):** Allows the worker VMs to interact with the Dataflow service.
+    *   **Dataflow Admin (`roles/dataflow.admin`):** Needed if the service account is also used to launch the job.
+    *   **Storage Object Admin (`roles/storage.objectAdmin`):** Required to read the template file, read/write to the staging bucket, and handle temp files.
+    *   **Bigtable User (`roles/bigtable.user`):** Required to read from and write data to Bigtable.
+
 *   **Job fails to start:** Check the Dataflow job logs for any configuration errors or issues with the control file.
 *   **Data not appearing in Bigtable:** Verify the row key and column mappings in the control file are correct. Check the job logs for any transformation errors.
 *   **Timeout in polling result file:** This error can occur if the Dataflow worker VMs do not have external IP addresses and cannot connect to Google APIs and services. To resolve this, you need to enable Private Google Access on the subnet used by the VMs. See [Configuring Private Google Access](https://cloud.google.com/vpc/docs/configure-private-google-access) for more details.
