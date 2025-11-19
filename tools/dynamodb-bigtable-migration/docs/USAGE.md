@@ -194,6 +194,7 @@ You can monitor the progress of the Dataflow job in the Google Cloud Console und
     *   **Dataflow Admin (`roles/dataflow.admin`):** Needed if the service account is also used to launch the job.
     *   **Storage Object Admin (`roles/storage.objectAdmin`):** Required to read the template file, read/write to the staging bucket, and handle temp files.
     *   **Bigtable User (`roles/bigtable.user`):** Required to read from and write data to Bigtable.
+    *   **Artifact Registry Reader (`roles/artifactregistry.reader`):** Required to pull the Dataflow container image from Artifact Registry.
 
 *   **Job fails to start:** Check the Dataflow job logs for any configuration errors or issues with the control file.
 *   **Data not appearing in Bigtable:** Verify the row key and column mappings in the control file are correct. Check the job logs for any transformation errors.
