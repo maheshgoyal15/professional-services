@@ -72,3 +72,4 @@ terraform.tfvars
 tools/dynamodb-bigtable-migration/scripts/.env
 tools/dynamodb-bigtable-migration/combined_output.txt
 tools/dynamodb-bigtable-migration/dependency-reduced-pom.xml
+
