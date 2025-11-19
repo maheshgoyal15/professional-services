@@ -140,10 +140,15 @@ The Bigtable Migration utility efficiently migrates data from a DynamoDB table t
 	export GOOGLE_APPLICATION_CREDENTIALS="/Users/${USER}/.config/gcloud/application_default_credentials.json"
 	```
 
-*   Execute the below script from the project root directory to build the flex template:
+*   Execute the below script from the project root directory to build the flex template. First, make the script executable:
 
 	```bash
-	sh ./scripts/flextemplate-build.sh
+	chmod +x ./scripts/flextemplate-build.sh
+	```
+
+	Then, run the script:
+	```bash
+	bash ./scripts/flextemplate-build.sh
 	```
 
 	Successful execution of the script will generate the following artifacts:
@@ -160,10 +165,14 @@ The Bigtable Migration utility efficiently migrates data from a DynamoDB table t
 	*   `bigtableInstanceId`: The ID of the Bigtable instance.
 	*   `bigtableTableId`: The ID of the Bigtable table.
 
-*   Execute the below script from the project root directory to run the flex template:
+*   Execute the below script from the project root directory to run the flex template. First, make the script executable:
 
+	```bash
+	chmod +x ./scripts/flextemplate-run.sh
 	```
-	sh ./scripts/flextemplate-run.sh DYNAMO-BT
+	Then, run the script:
+	```bash
+	bash ./scripts/flextemplate-run.sh DYNAMO-BT
 	```
 
 *   Once the pipeline is launched, monitor its progress in the Dataflow section of the [Google Cloud Console](https://console.cloud.google.com/dataflow/?hl=en).

@@ -56,8 +56,14 @@ The `flextemplate-build.sh` script in the `scripts` directory builds the uber JA
 
 1.  **Build the JAR and Flex Template:**
 
+    First, make the script executable:
     ```bash
-    sh scripts/flextemplate-build.sh
+    chmod +x scripts/flextemplate-build.sh
+    ```
+
+    Then, run the script:
+    ```bash
+    bash scripts/flextemplate-build.sh
     ```
 
     This script performs the following actions:
@@ -142,8 +148,14 @@ The `flextemplate-run.sh` script in the `scripts` directory runs the Dataflow jo
 
 1.  **Run the migration:**
 
+    First, make the script executable:
     ```bash
-    sh scripts/flextemplate-run.sh DYNAMO-BT
+    chmod +x scripts/flextemplate-run.sh
+    ```
+
+    Then, run the script:
+    ```bash
+    bash scripts/flextemplate-run.sh DYNAMO-BT
     ```
 
     This command will start a new Dataflow job with a unique name.
