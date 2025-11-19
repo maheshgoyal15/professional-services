@@ -1,12 +1,18 @@
 custom.iamDisableBasicRoles:
-  actionType: DENY
-  condition: resource.bindings.exists(bind, RoleNameMatches(bind.role, ["roles/viewer"])
-    || RoleNameMatches(bind.role, ["roles/editor"]) || RoleNameMatches(bind.role,
-    ["roles/owner"]))
+  action_type: DENY
+  condition: |-
+    resource.bindings.exists(binding,
+      binding.members.exists(member,MemberSubjectStartsWith(member, ['user:', 'group'])) &&
+      (
+          RoleNameMatches(binding.role, ["roles/editor"]) ||
+          RoleNameMatches(binding.role, ["roles/owner"]) ||
+          RoleNameContains(binding.role, ["roles/viewer"])
+      )
+    )
   description: Ensure no use of the basic roles (viewer, editor and owner)
-  displayName: Deny use of the basic roles
-  methodTypes:
+  display_name: Deny use of the basic roles
+  method_types:
   - CREATE
   - UPDATE
-  resourceTypes:
+  resource_types:
   - iam.googleapis.com/AllowPolicy

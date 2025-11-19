@@ -1,8 +1,8 @@
 custom.gkeDisableClientCertificateAuthentication:
   action_type: DENY
-  condition: resource.masterAuth.clientCertificateConfig.issueClientCertificate ==
-    true
-  description: Enforce that the API servers authentication are not using  legacy authentication
+  condition: |-
+    resource.masterAuth.clientCertificateConfig.issueClientCertificate == true
+  description: Enforce that the API servers authentication are not using legacy authentication
     method client certificate
   display_name: Disable legacy client certificate authentication
   method_types:
