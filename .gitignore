@@ -70,14 +70,5 @@ tools/bq-visualizer/.angular
 terraform.tfvars
 
 tools/dynamodb-bigtable-migration/scripts/.env
-/examples/mcptoolbox-bq-claude-slack-agent/nbproject/
-examples/web-instrumentation/browser/package-lock.json
-examples/anthos-cicd-with-gitlab/src/hello-kubernetes/app/package-lock.json
-examples/iap-user-profile/package-lock.json
-examples/web-instrumentation/browser/package-lock.json
 tools/dynamodb-bigtable-migration/combined_output.txt
 tools/dynamodb-bigtable-migration/dependency-reduced-pom.xml
-examples/anthos-cicd-with-gitlab/src/hello-kubernetes/app/package-lock.json
-examples/iap-user-profile/package-lock.json
-examples/web-instrumentation/browser/package-lock.json
-examples/anthos-cicd-with-gitlab/src/hello-kubernetes/app/package-lock.json
