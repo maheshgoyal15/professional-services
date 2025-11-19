@@ -70,4 +70,5 @@ tools/bq-visualizer/.angular
 terraform.tfvars
 
 tools/dynamodb-bigtable-migration/scripts/.env
-/examples/mcptoolbox-bq-claude-slack-agent/nbproject/
+tools/dynamodb-bigtable-migration/combined_output.txt
+tools/dynamodb-bigtable-migration/dependency-reduced-pom.xml

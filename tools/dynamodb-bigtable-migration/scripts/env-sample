@@ -1,17 +1,35 @@
-PROJECT_ID=<<GCP Project ID>> #e.g: test-project
-REGION=<<GCP Region>> #e.g: us-central1
+# =========================================
+# GCP Project & Infrastructure Settings
+# =========================================
+PROJECT_ID=<your-gcp-project-id>
+REGION=<your-gcp-region>
 
-REPOSITORY=<<Artifactory repository>> #e.g: "cbt-flextemplates"
-IMAGE_NAME=<<Name of the docker image along with tag>> #e.g: bigtable-data-import:latest
+# Artifact Registry settings
+REPOSITORY=<your-artifact-repo-name>
+IMAGE_NAME=dynamodb-to-bigtable:latest
 
-FLEX_TEMPLATE_SPEC_FILE_PATH=<<GCS Path to store the flex template file specification>> # "gs://<bucket-name>/templates/templatename"
-STAGING_LOCATION=<<GCS Path to store the staging data >>   # "gs://<bucket-name>/templates/templatename"
-TEMP_LOCATION=<<GCS Path to store the flex template file specification>> # "gs://<bucket-name>/templates/templatename"
+# =========================================
+# GCS Bucket Locations
+# =========================================
+# It is common to use the same bucket for all Dataflow artifacts,
+# just separated by prefixes (folders).
+BUCKET_NAME=<your-gcs-bucket-name>
 
-INPUT_FILEPATH=<<GCS path containing the DynamoDB exports>> # gs://sample-bucket-test/dynamodb-export/*.json.gz
-BIGTABLE_INSTANCE_ID=<<Name of the Bigtable instance>>  #bigtable-clusterOptional parameters
-BIGTABLE_ROW_KEY=<<Provide DynamoDB Partition Key that will be used as Bigtable row key >> #Username
+FLEX_TEMPLATE_SPEC_FILE_PATH="gs://${BUCKET_NAME}/templates/dynamodb-to-bigtable.json"
+STAGING_LOCATION="gs://${BUCKET_NAME}/staging"
+TEMP_LOCATION="gs://${BUCKET_NAME}/temp"
 
-// Optional parameters
-BIGTABLE_TABLE_ID=<<Name of the Bigtable table>> #bigtable-table
-BIGTABLE_COL_FAMILY=<<Provide Bigtable Column Family>> #cf1
+# =========================================
+# Input & Control Configuration
+# =========================================
+CONTROL_FILE_PATH="gs://${BUCKET_NAME}/config/control.json"
+
+# Optional override if you want to test specific files instead of
+# what is defined in the control.json 'sourceFileLocation'
+INPUT_FILEPATH="gs://${BUCKET_NAME}/dynamodb-export/AWSDynamoDB/*.json.gz"
+
+# =========================================
+# Bigtable Target Configuration
+# =========================================
+BIGTABLE_INSTANCE_ID=<your-bigtable-instance-id>
+BIGTABLE_TABLE_ID=<your-bigtable-table-id>

@@ -27,6 +27,7 @@ public class DataLoadConstants {
     public static final String COLUMN_FAMILY = "column_family";
     public static final String COLUMN = "column";
     public static final String PAYLOAD = "payload";
+    public static final String TIMESTAMP = "timestamp";
   }
 
   public static class DynamoDBFields {
