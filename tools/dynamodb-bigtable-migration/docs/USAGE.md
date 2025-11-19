@@ -100,13 +100,41 @@ Here is an example of a `control-file.json`:
 *   `defaultColumnFamily`: (Optional) If a DynamoDB item does not match any of the `columnQualifierMappings`, the entire item will be written to this column family.
 *   `defaultColumnQualifier`: (Optional) The column qualifier to use when writing an unmapped item to the `defaultColumnFamily`.
 *   `rowKey`: An object that defines how to construct the Bigtable row key.
-    *   `type`: The type of row key construction. `simple` concatenates the values of the specified `fields`.
-    *   `fields`: An array of DynamoDB attribute names to use for the row key.
-    *   `chainChar`: The character to use when joining multiple fields for the row key.
+    *   `type`: The type of row key construction. Can be `simple` for a single field key, or `composite` to combine multiple fields.
+    *   `fields`: An array of DynamoDB attribute names to use for the row key. For a `simple` key, provide one field. For a `composite` key, provide multiple fields in the desired order.
+    *   `chainChar`: (Optional) The character to use when joining multiple fields for a `composite` row key. Defaults to `#`.
 *   `columnQualifierMappings`: An array of objects that define how to map DynamoDB attributes to Bigtable columns.
     *   `json`: The name of the DynamoDB attribute. You can use dot notation for nested attributes (e.g., `Contact.Email`).
     *   `columnFamily`: The Bigtable column family.
     *   `columnQualifier`: The Bigtable column qualifier.
+
+### Composite Row Key Example
+
+To create a row key from a partition key (`UserId`) and a sort key (`TransactionId`), you can use the `composite` row key type:
+
+```json
+{
+  "sourceFileLocation": "gs://<your-gcs-bucket-name>/dynamodb-export/*.json.gz",
+  "defaultColumnFamily": "cf_raw",
+  "rowKey": {
+    "type": "composite",
+    "fields": [
+      "UserId",
+      "TransactionId"
+    ],
+    "chainChar": "#"
+  },
+  "columnQualifierMappings": [
+    {
+      "json": "Amount",
+      "columnFamily": "cf_details",
+      "columnQualifier": "amount"
+    }
+  ]
+}
+```
+
+This configuration will create a Bigtable row key like `12345#abcdef`.
 
 ## Running the Migration
 

@@ -16,13 +16,12 @@ The Bigtable Migration utility efficiently migrates data from a DynamoDB table t
 
 ### DynamoDB
 
-*   **DynamoDB table partition key:** The table must have unique Partition Keys. The utility reads the DynamoDB `Partition Key` and uses it as a `Bigtable Row Key`. Currently, the utility does not consider the DynamoDB Sort Key in mapping row keys.
 *   **DynamoDB export:** The utility supports importing DynamoDB Full Exports. It does not support importing Incremental Exports.
 
 ### Bigtable
 
-*   **Bigtable Table:** If you don't specify a Bigtable `table` in the environment file, the utility will create one for you.To migrate data to a specific Bigtable table, you need to create the table and at least one column family beforehand. The utility will create `column qualifier` in the specified column family.
-*   **Bigtable row key:** The DynamoDB `partition key` will be mapped as the `row key` in Bigtable. Along with the `table name` and `column family`, specify the DynamoDB table `partition key` as a parameter in the .env file.
+*   **Bigtable Table:** If you don't specify a Bigtable `table` in the environment file, the utility will create one for you.To migrate data to a specific Bigtable table, you need to create the table and at least one column family beforehand.
+*   **Bigtable row key:** The Bigtable row key is configured in the control file. It can be a simple key from a single DynamoDB attribute, or a composite key created by combining multiple attributes (like a partition key and a sort key). See the [USAGE guide](docs/USAGE.md) for detailed configuration.
 
 ## Migration Steps
 
