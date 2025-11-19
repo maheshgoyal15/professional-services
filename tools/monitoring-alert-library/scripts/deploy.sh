@@ -208,64 +208,69 @@ function traverse_folder() {
   return $has_error
 }
 
-if ! check_gcloud; then
-  install_gcloud
-  exit 1
-fi
-
-if [[ $# -ne 3 ]]; then
-  echo "Error: Incorrect number of arguments."
-  print_usage
-  exit 1
-fi
-
-PROJECT_ID="$1"
-LOG_METRICS_FOLDER_PATH="$2"
-ALERTS_FOLDER_PATH="$3"
-
-if [[ -z "$PROJECT_ID" ]]; then
-   echo "Error: Project ID cannot be empty."
-   print_usage
-   exit 1
-fi
-
-if [[ -z "$LOG_METRICS_FOLDER_PATH" ]]; then
-   echo "Error: Log-based metrics folder path cannot be empty."
-   print_usage
-   exit 1
-fi
-
-if [[ -z "$ALERTS_FOLDER_PATH" ]]; then
-   echo "Error: Alerts folder path cannot be empty."
-   print_usage
-   exit 1
-fi
-
-echo "Starting deployment..."
-echo "Project ID: $PROJECT_ID"
-echo "========================================="
-
-echo "Deploying Log-based Metrics..."
-echo "Log Metrics Folder: $LOG_METRICS_FOLDER_PATH"
-echo "-----------------------------------------"
-if ! traverse_folder "$PROJECT_ID" "$LOG_METRICS_FOLDER_PATH" process_log_metric_file; then
-    echo "========================================="
-    echo "Script finished with errors during log-based metric deployment."
+# Main execution starts here
+function main() {
+  if ! check_gcloud; then
+    install_gcloud
     exit 1
-fi
-echo "Log-based Metrics deployment finished."
-echo "========================================="
+  fi
 
-
-echo "Deploying Monitoring Alert Policies..."
-echo "Alerts Folder: $ALERTS_FOLDER_PATH"
-echo "-----------------------------------------"
-if traverse_folder "$PROJECT_ID" "$ALERTS_FOLDER_PATH" process_alert_file; then
-    echo "========================================="
-    echo "Script finished successfully."
-    exit 0
-else
-    echo "========================================="
-    echo "Script finished with errors during alert policy deployment."
+  if [[ $# -ne 3 ]]; then
+    echo "Error: Incorrect number of arguments."
+    print_usage
     exit 1
-fi
+  fi
+
+  PROJECT_ID="$1"
+  LOG_METRICS_FOLDER_PATH="$2"
+  ALERTS_FOLDER_PATH="$3"
+
+  if [[ -z "$PROJECT_ID" ]]; then
+    echo "Error: Project ID cannot be empty."
+    print_usage
+    exit 1
+  fi
+
+  if [[ -z "$LOG_METRICS_FOLDER_PATH" ]]; then
+    echo "Error: Log-based metrics folder path cannot be empty."
+    print_usage
+    exit 1
+  fi
+
+  if [[ -z "$ALERTS_FOLDER_PATH" ]]; then
+    echo "Error: Alerts folder path cannot be empty."
+    print_usage
+    exit 1
+  fi
+
+  echo "Starting deployment..."
+  echo "Project ID: $PROJECT_ID"
+  echo "========================================="
+
+  echo "Deploying Log-based Metrics..."
+  echo "Log Metrics Folder: $LOG_METRICS_FOLDER_PATH"
+  echo "-----------------------------------------"
+  if ! traverse_folder "$PROJECT_ID" "$LOG_METRICS_FOLDER_PATH" process_log_metric_file; then
+      echo "========================================="
+      echo "Script finished with errors during log-based metric deployment."
+      exit 1
+  fi
+  echo "Log-based Metrics deployment finished."
+  echo "========================================="
+
+
+  echo "Deploying Monitoring Alert Policies..."
+  echo "Alerts Folder: $ALERTS_FOLDER_PATH"
+  echo "-----------------------------------------"
+  if traverse_folder "$PROJECT_ID" "$ALERTS_FOLDER_PATH" process_alert_file; then
+      echo "========================================="
+      echo "Script finished successfully."
+      exit 0
+  else
+      echo "========================================="
+      echo "Script finished with errors during alert policy deployment."
+      exit 1
+  fi
+}
+
+main "$@"
